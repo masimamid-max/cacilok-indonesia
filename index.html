@@ -252,25 +252,39 @@
         </button>
       </div>
 
+      <!-- Status Printer Bluetooth Terkoneksi -->
+      <div id="receipt-printer-info" class="mb-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+        <span class="flex items-center gap-2">
+          <span id="receipt-printer-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+          <span id="receipt-printer-name" class="font-bold text-slate-700">Bluetooth Belum Dipilih</span>
+        </span>
+        <button type="button" onclick="changeBluetoothPrinter()" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+          <i class='bx bx-refresh text-sm'></i> Ganti Printer
+        </button>
+      </div>
+
       <div id="receipt-preview-box" class="flex-1 overflow-y-auto bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-4 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
       </div>
 
       <div class="mt-4 space-y-2">
-        <div class="grid grid-cols-3 gap-2">
-          <button onclick="printViaBluetooth()" class="py-2.5 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition shadow-sm">
-            <i class='bx bx-bluetooth text-lg'></i>
-            <span>Direct BLE</span>
+        <!-- Tombol Utama: Otomatis Scan, Koneksikan & Langsung Cetak -->
+        <button onclick="printViaBluetooth()" id="btn-main-bluetooth-print"
+          class="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-extrabold text-sm flex items-center justify-center gap-2 transition shadow-md shadow-blue-600/25">
+          <i class='bx bx-bluetooth text-xl'></i>
+          <span id="btn-main-bluetooth-text">Cari Bluetooth & Cetak Otomatis</span>
+        </button>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="printViaRawBT()" class="py-2.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 transition border border-emerald-200">
+            <i class='bx bx-mobile-alt text-base'></i>
+            <span>Cetak via RawBT</span>
           </button>
-          <button onclick="printViaRawBT()" class="py-2.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition shadow-sm">
-            <i class='bx bx-mobile-alt text-lg'></i>
-            <span>RawBT (HP)</span>
-          </button>
-          <button onclick="printViaBrowser()" class="py-2.5 px-2 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 transition shadow-sm">
-            <i class='bx bx-printer text-lg'></i>
-            <span>Print / USB</span>
+          <button onclick="printViaBrowser()" class="py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition border border-slate-200">
+            <i class='bx bx-printer text-base'></i>
+            <span>Print / USB PC</span>
           </button>
         </div>
-        <p class="text-[11px] text-slate-400 text-center leading-snug">Gunakan <b>Direct BLE</b> untuk Bluetooth Web, <b>RawBT</b> jika printer Bluetooth Classic/SPP di Android, atau <b>Print/USB</b> di PC.</p>
+        <p class="text-[11px] text-slate-400 text-center leading-tight">Saat printer Bluetooth dipilih, aplikasi akan otomatis menghubungkan dan langsung mencetak struk.</p>
       </div>
     </div>
   </div>
@@ -2164,6 +2178,38 @@
       }
     }
 
+    function updateBluetoothUI(connected = false, name = null) {
+      const dot = document.getElementById('bt-dot');
+      const label = document.getElementById('bt-label');
+      const modalDot = document.getElementById('receipt-printer-dot');
+      const modalName = document.getElementById('receipt-printer-name');
+      const btnText = document.getElementById('btn-main-bluetooth-text');
+
+      if (connected && name) {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+        if (label) label.textContent = name.slice(0, 12);
+        if (modalDot) modalDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        if (modalName) modalName.textContent = name + ' (Terkoneksi)';
+        if (btnText) btnText.textContent = `Cetak ke ${name.slice(0, 14)}`;
+      } else {
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-400';
+        if (label) label.textContent = 'Printer BT';
+        if (modalDot) modalDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-400';
+        if (modalName) modalName.textContent = 'Bluetooth Belum Dipilih';
+        if (btnText) btnText.textContent = 'Cari Bluetooth & Cetak Otomatis';
+      }
+    }
+
+    async function changeBluetoothPrinter() {
+      if (state.btDevice && state.btDevice.gatt && state.btDevice.gatt.connected) {
+        try { state.btDevice.gatt.disconnect(); } catch (e) {}
+      }
+      state.btCharacteristic = null;
+      state.btDevice = null;
+      updateBluetoothUI(false);
+      await connectBluetoothPrinter();
+    }
+
     function openReceiptModal(orderId) {
       const order = state.orders.find(o => o.id === orderId);
       if (!order) return;
@@ -2172,6 +2218,10 @@
       document.getElementById('receipt-preview-box').textContent = formatCustomerReceipt(order);
       document.getElementById('tab-receipt-cust').className = 'py-1.5 rounded-lg bg-white shadow-xs text-orange-600';
       document.getElementById('tab-receipt-kitchen').className = 'py-1.5 rounded-lg text-slate-500 hover:text-slate-800';
+
+      const isConnected = !!(state.btCharacteristic && state.btDevice?.gatt?.connected);
+      updateBluetoothUI(isConnected, state.btDeviceName);
+
       document.getElementById('receipt-modal').classList.remove('hidden');
     }
 
@@ -2217,7 +2267,7 @@
     async function connectBluetoothPrinter() {
       if (!navigator.bluetooth) {
         showToast('Browser ini belum mendukung Web Bluetooth. Pastikan menggunakan Chrome di Android / PC dengan HTTPS atau gunakan RawBT / USB.', 'error');
-        return;
+        return null;
       }
       try {
         showToast('Mencari printer thermal Bluetooth...', 'info');
@@ -2226,10 +2276,11 @@
           optionalServices: THERMAL_BLE_SERVICES
         });
 
+        device.removeEventListener('gattserverdisconnected', onBluetoothDisconnected);
         device.addEventListener('gattserverdisconnected', onBluetoothDisconnected);
 
+        showToast(`Menghubungkan ke ${device.name || 'Printer'}...`, 'info');
         const server = await device.gatt.connect();
-        showToast(`Terhubung ke ${device.name || 'Printer'}, mencari service...`, 'info');
 
         let writableChar = null;
         for (const sUuid of THERMAL_BLE_SERVICES) {
@@ -2264,42 +2315,47 @@
 
         if (!writableChar) {
           showToast('Karakteristik tulis printer tidak ditemukan. Jika printer bertipe Bluetooth Classic/SPP, gunakan tombol RawBT atau kabel USB.', 'error');
-          return;
+          return null;
         }
 
         state.btDevice = device;
         state.btCharacteristic = writableChar;
         state.btDeviceName = device.name || 'Printer BT';
-        document.getElementById('bt-label').textContent = state.btDeviceName.slice(0, 12);
-        document.getElementById('bt-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-        showToast(`Printer ${state.btDeviceName} Siap Digunakan!`, 'success');
+        updateBluetoothUI(true, state.btDeviceName);
+        showToast(`Terhubung ke ${state.btDeviceName}!`, 'success');
+        return writableChar;
       } catch (err) {
         console.error('BT Error:', err);
         if (err.name !== 'NotFoundError') {
           showToast('Koneksi Bluetooth gagal: ' + (err.message || 'Perangkat menolak'), 'error');
         }
+        return null;
       }
     }
 
     function onBluetoothDisconnected() {
       state.btCharacteristic = null;
       state.btDevice = null;
-      const dot = document.getElementById('bt-dot');
-      if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-400';
-      const label = document.getElementById('bt-label');
-      if (label) label.textContent = 'Printer BT';
+      updateBluetoothUI(false);
       showToast('Koneksi printer Bluetooth terputus.', 'warning');
     }
 
-    async function printViaBluetooth() {
-      if (!state.selectedReceiptOrder) return;
-      if (!state.btCharacteristic || !state.btDevice?.gatt?.connected) {
-        await connectBluetoothPrinter();
-        if (!state.btCharacteristic) return;
+    async function printViaBluetooth(customOrder = null) {
+      const order = customOrder || state.selectedReceiptOrder;
+      if (!order) return showToast('Pilih order yang ingin dicetak', 'warning');
+
+      let characteristic = state.btCharacteristic;
+      let isConnected = !!(characteristic && state.btDevice?.gatt?.connected);
+
+      // JIKA BELUM TERHUBUNG: OTOMATIS BUKA PENCARIAN BLUETOOTH AKTIF
+      if (!isConnected) {
+        characteristic = await connectBluetoothPrinter();
+        if (!characteristic) return;
       }
 
+      // KETIKA BLUETOOTH TERPILIH & TERKONEKSI: OTOMATIS LANGSUNG TER-PRINT & DATA TERKIRIM
       try {
-        showToast('Mengirim data struk ke printer...', 'info');
+        showToast(`Mengirim data struk ke ${state.btDeviceName}...`, 'info');
         const encoder = new TextEncoder();
         const initCmd = new Uint8Array([0x1B, 0x40]); // ESC @
         const textBytes = encoder.encode(getActiveReceiptContent());
@@ -2314,18 +2370,17 @@
         const CHUNK_SIZE = 20;
         for (let i = 0; i < fullData.length; i += CHUNK_SIZE) {
           const chunk = fullData.slice(i, i + CHUNK_SIZE);
-          if (state.btCharacteristic.properties.writeWithoutResponse && state.btCharacteristic.writeValueWithoutResponse) {
-            await state.btCharacteristic.writeValueWithoutResponse(chunk);
-          } else if (state.btCharacteristic.writeValue) {
-            await state.btCharacteristic.writeValue(chunk);
+          if (characteristic.properties.writeWithoutResponse && characteristic.writeValueWithoutResponse) {
+            await characteristic.writeValueWithoutResponse(chunk);
+          } else if (characteristic.writeValue) {
+            await characteristic.writeValue(chunk);
           }
           await new Promise(r => setTimeout(r, 15));
         }
-        showToast('Struk berhasil dicetak ke Printer Bluetooth!', 'success');
+        showToast(`Struk antrean #${order.queue} berhasil dicetak ke ${state.btDeviceName}!`, 'success');
       } catch (err) {
         console.error('BT Print Error:', err);
-        state.btCharacteristic = null;
-        document.getElementById('bt-dot').className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+        updateBluetoothUI(false);
         showToast('Gagal cetak Bluetooth (' + (err.message || 'Error') + '). Gunakan RawBT atau Print/USB.', 'error');
       }
     }
